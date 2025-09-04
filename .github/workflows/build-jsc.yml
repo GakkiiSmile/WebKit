@@ -153,8 +153,8 @@ jobs:
 
       - name: Upload Linux artifacts
         if: matrix.target == 'linux'
-        working-directory: webkit
         uses: actions/upload-artifact@v4
+        working-directory: webkit
         with:
           name: jsc-linux
           path: |
@@ -163,8 +163,8 @@ jobs:
 
       - name: Upload Windows artifacts
         if: matrix.target == 'windows'
-        working-directory: webkit
         uses: actions/upload-artifact@v4
+        working-directory: webkit
         with:
           name: jsc-windows-${{ matrix.arch }}
           path: |
@@ -174,8 +174,8 @@ jobs:
 
       - name: Upload Android artifacts
         if: matrix.target == 'android'
-        working-directory: webkit
         uses: actions/upload-artifact@v4
+        working-directory: webkit
         with:
           name: jsc-android-${{ matrix.abi }}
           path: |
