@@ -150,33 +150,33 @@ jobs:
         run: perl Tools/Scripts/build-jsc --jsc-only --Release --cmakeargs='-GNinja'
 
       # ================= Upload Artifacts =================
+      - name: Prepare artifacts for upload
+        working-directory: webkit
+        run: |
+          mkdir -p artifact-dir
+          cp -r WebKitBuild/Release/lib/* artifact-dir/
+          cp -r WebKitBuild/Release/bin/* artifact-dir/
 
       - name: Upload Linux artifacts
         if: matrix.target == 'linux'
         uses: actions/upload-artifact@v4
-        working-directory: webkit
         with:
           name: jsc-linux
           path: |
-            WebKitBuild/Release/lib/**
-            WebKitBuild/Release/bin/jsc
+            artifact-dir/
 
       - name: Upload Windows artifacts
         if: matrix.target == 'windows'
         uses: actions/upload-artifact@v4
-        working-directory: webkit
         with:
           name: jsc-windows-${{ matrix.arch }}
           path: |
-            WebKitBuild/Release/bin/JavaScriptCore.dll
-            WebKitBuild/Release/lib/JavaScriptCore.lib
-            WebKitBuild/Release/bin/jsc.exe
+            artifact-dir/
 
       - name: Upload Android artifacts
         if: matrix.target == 'android'
         uses: actions/upload-artifact@v4
-        working-directory: webkit
         with:
           name: jsc-android-${{ matrix.abi }}
           path: |
-            WebKitBuild/Release/lib/${{ matrix.abi }}/libJavaScriptCore.so
+            artifact-dir/
