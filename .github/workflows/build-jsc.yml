@@ -101,7 +101,7 @@ jobs:
             webkit/WebKitBuild
           key: ${{ runner.os }}-jsc-${{ matrix.target }}-${{ matrix.abi || 'na' }}-${{ hashFiles('webkit/Tools/Scripts/build-jsc', 'webkit/Source/JavaScriptCore/**') }}
           restore-keys: |
-            ${{ runner.os }}-jsc-${{ matrix.target }}-${{ matrix.abi || 'na' }}-
+            ${{ runner.os }}-jsc-${{ matrix.target }}-${{ matrix.abi || 'na' }}-${{ hashFiles('webkit/Tools/Scripts/build-jsc', 'webkit/Source/JavaScriptCore/**') }}
 
       # 判断缓存是否命中，跳过构建
       - name: echo cache hit
