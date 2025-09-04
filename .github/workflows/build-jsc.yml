@@ -106,7 +106,7 @@ jobs:
         if: matrix.target == 'linux'
         working-directory: webkit
         run: |
-          Tools/Scripts/build-jsc --jsc-only --${CONFIG,,} \
+          Tools/Scripts/build-jsc --jsc-only --${CONFIG} \
             --cmakeargs="-GNinja"
 
       # ================= Build ICU for Android =================
@@ -123,7 +123,7 @@ jobs:
         if: matrix.target == 'android'
         working-directory: webkit
         run: |
-          Tools/Scripts/build-jsc --jsc-only --${{ matrix.config,, }} \
+          Tools/Scripts/build-jsc --jsc-only --${{ matrix.config }} \
             --cmakeargs="-GNinja \
               -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
               -DANDROID_ABI=${{ matrix.arch }} \
@@ -136,7 +136,7 @@ jobs:
         shell: pwsh
         working-directory: webkit
         run: |
-          perl Tools/Scripts/build-jsc --jsc-only --${CONFIG,,} \
+          perl Tools/Scripts/build-jsc --jsc-only --${CONFIG} \
             --cmakeargs="-GNinja"
 
       # ================= Upload Artifacts =================
