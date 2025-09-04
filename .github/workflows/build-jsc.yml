@@ -61,7 +61,6 @@ jobs:
             libsqlite3-dev libjpeg-dev libpng-dev libwebp-dev \
             libharfbuzz-dev ccache
 
-
       - name: Setup MSVC env (Windows)
         if: matrix.target == 'windows'
         uses: ilammy/msvc-dev-cmd@v1
@@ -88,7 +87,8 @@ jobs:
           ndk-version: r26d
           add-to-path: true
           link-to-sdk: true
-          local-cache: true
+          local-cache:
+            true
 
             # 新增：构建 ICU for Android
       - name: Build ICU for Android
@@ -148,7 +148,6 @@ jobs:
         shell: pwsh
         working-directory: webkit
         run: perl Tools/Scripts/build-jsc --jsc-only --Release --cmakeargs='-GNinja'
-
 
       # ================= Upload Artifacts =================
 
