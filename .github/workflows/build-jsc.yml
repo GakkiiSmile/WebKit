@@ -113,7 +113,7 @@ jobs:
         if: matrix.target == 'android'
         working-directory: webkit
         run: |
-          Tools/Scripts/build-jsc --jsc-only --${{ matrix.config }} \
+          Tools/Scripts/build-jsc --jsc-only --${{CONFIG}} \
             --cmakeargs="-GNinja \
               -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
               -DANDROID_ABI=${{ matrix.arch }} \
@@ -125,9 +125,8 @@ jobs:
         if: matrix.target == 'windows'
         shell: pwsh
         working-directory: webkit
-        run: |
-          perl Tools/Scripts/build-jsc --jsc-only --${CONFIG} \
-            --cmakeargs="-GNinja"
+        run: perl Tools/Scripts/build-jsc --jsc-only --${{CONFIG}} --cmakeargs="-GNinja"
+
 
       # ================= Upload Artifacts =================
 
@@ -137,8 +136,8 @@ jobs:
         with:
           name: jsc-linux-${{ matrix.arch }}
           path: |
-            webkit/WebKitBuild/${{ matrix.config }}/lib/libJavaScriptCore.so*
-            webkit/WebKitBuild/${{ matrix.config }}/bin/jsc
+            webkit/WebKitBuild/${{CONFIG}}/lib/libJavaScriptCore.so*
+            webkit/WebKitBuild/${{CONFIG}}/bin/jsc
 
       - name: Upload Windows artifacts
         if: matrix.target == 'windows'
@@ -146,9 +145,9 @@ jobs:
         with:
           name: jsc-windows-${{ matrix.arch }}
           path: |
-            webkit/WebKitBuild/${{ matrix.config }}/bin/JavaScriptCore.dll
-            webkit/WebKitBuild/${{ matrix.config }}/lib/JavaScriptCore.lib
-            webkit/WebKitBuild/${{ matrix.config }}/bin/jsc.exe
+            webkit/WebKitBuild/${{CONFIG}}/bin/JavaScriptCore.dll
+            webkit/WebKitBuild/${{CONFIG}}/lib/JavaScriptCore.lib
+            webkit/WebKitBuild/${{CONFIG}}/bin/jsc.exe
 
       - name: Upload Android artifacts
         if: matrix.target == 'android'
@@ -156,4 +155,4 @@ jobs:
         with:
           name: jsc-android-${{ matrix.arch }}
           path: |
-            webkit/WebKitBuild/${{ matrix.config }}/lib/${{ matrix.arch }}/libJavaScriptCore.so
+            webkit/WebKitBuild/${{CONFIG}}/lib/${{ matrix.arch }}/libJavaScriptCore.so
