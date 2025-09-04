@@ -52,8 +52,6 @@ jobs:
           repository: WebKit/WebKit
           path: webkit
           fetch-depth: 1
-          # 说明：WebKit 的构建脚本会引用 Tools、Source 等多处文件。
-          # 为避免缺文件导致构建失败，这里不做 sparse checkout。
 
       # ---------------------------
       # Linux 依赖
@@ -77,7 +75,6 @@ jobs:
         shell: powershell
         run: |
           choco install -y strawberryperl cmake ninja gperf winflexbison3 python ruby nasm
-          # CMake/Ninja/Perl/Python/Ruby 等用于驱动 build-jsc 与生成文件
           refreshenv
 
       - name: Setup MSVC env (Windows)
@@ -91,10 +88,13 @@ jobs:
       # ---------------------------
       - name: Setup Android NDK
         if: matrix.target == 'android'
-        uses: android-actions/setup-ndk@v3
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
         with:
-          # r26 系列与 CMake toolchain 配合良好；如需特定版本可改这个值
           ndk-version: r26d
+          add-to-path: true
+          link-to-sdk: true
+          local-cache: true
 
       # ---------------------------
       # Cache
@@ -121,43 +121,35 @@ jobs:
       - name: Build JSC (Android ${{ matrix.abi }})
         if: matrix.target == 'android'
         working-directory: webkit
-        env:
-          ANDROID_NDK: ${{ env.ANDROID_NDK_ROOT }}
         run: |
           Tools/Scripts/build-jsc --jsc-only --${CONFIG,,} \
-            --cmakeargs="-GNinja -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake -DANDROID_ABI=${{ matrix.abi }} -DANDROID_PLATFORM=android-24"
+            --cmakeargs="-GNinja -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake -DANDROID_ABI=${{ matrix.abi }} -DANDROID_PLATFORM=android-24"
 
       - name: Build JSC (Windows)
         if: matrix.target == 'windows'
         shell: bash
         working-directory: webkit
         run: |
-          # 在 Windows 上用 Perl 调用脚本以确保兼容性
           perl Tools/Scripts/build-jsc --jsc-only --${CONFIG,,} \
             --cmakeargs="-GNinja"
 
       # ---------------------------
       # Collect & Upload Artifacts
       # ---------------------------
-      - name: Locate artifacts
-        id: find_paths
+      - name: Collect build outputs
         shell: bash
-        working-directory: webkit
         run: |
-          echo "Searching build outputs..."
-          # 统一收集可能路径（不同平台/生成器目录结构略有差异）
-          mkdir -p ../_out
+          mkdir -p _out
           # Linux / Android
-          find WebKitBuild -type f -name "libJavaScriptCore*.so" -exec cp -v {} ../_out/ \; || true
+          find webkit/WebKitBuild -type f -name "libJavaScriptCore*.so" -exec cp -v {} _out/ \; || true
           # Windows
-          find WebKitBuild -type f \( -iname "JavaScriptCore.dll" -o -iname "JavaScriptCore.lib" -o -iname "JavaScriptCore.pdb" \) -exec cp -v {} ../_out/ \; || true
-          ls -l ../_out || true
+          find webkit/WebKitBuild -type f \( -iname "JavaScriptCore.dll" -o -iname "JavaScriptCore.lib" -o -iname "JavaScriptCore.pdb" \) -exec cp -v {} _out/ \; || true
+          ls -l _out || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: jsc-${{ matrix.target }}${{ matrix.abi && format('-{0}', matrix.abi) || '' }}-${{ env.CONFIG }}
-          path: |
-            _out/**
+          path: _out/**
           if-no-files-found: error
           retention-days: 14
