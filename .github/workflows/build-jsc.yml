@@ -100,26 +100,27 @@ jobs:
         if: matrix.target == 'linux'
         working-directory: webkit
         run: |
-          Tools/Scripts/build-jsc --jsc-only --${CONFIG} \
+          Tools/Scripts/build-jsc --jsc-only --Release \
             --cmakeargs="-GNinja"
 
       - name: Build JSC (Android ${{ matrix.abi }})
         if: matrix.target == 'android'
         working-directory: webkit
         run: |
-          Tools/Scripts/build-jsc --jsc-only --${CONFIG} \
+          Tools/Scripts/build-jsc --jsc-only --Release \
             --cmakeargs="-GNinja \
               -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
               -DANDROID_ABI=${{ matrix.abi }} \
               -DANDROID_PLATFORM=android-24 \
               -DENABLE_ICU=OFF \
+              -DUSE_SYSTEM_ICU=OFF \
               -DCMAKE_POLICY_DEFAULT_CMP0048=NEW"
 
       - name: Build JSC (Windows)
         if: matrix.target == 'windows'
         shell: pwsh
         working-directory: webkit
-        run: perl Tools/Scripts/build-jsc --jsc-only --${CONFIG} --cmakeargs="-GNinja"
+        run: perl Tools/Scripts/build-jsc --jsc-only --Release --cmakeargs='-GNinja'
 
 
       # ================= Upload Artifacts =================
@@ -130,8 +131,8 @@ jobs:
         with:
           name: jsc-linux-${{ matrix.arch }}
           path: |
-            webkit/WebKitBuild/${CONFIG}/lib/libJavaScriptCore.so*
-            webkit/WebKitBuild/${CONFIG}/bin/jsc
+            webkit/WebKitBuild/Release/lib/libJavaScriptCore.so*
+            webkit/WebKitBuild/Release/bin/jsc
 
       - name: Upload Windows artifacts
         if: matrix.target == 'windows'
@@ -139,9 +140,9 @@ jobs:
         with:
           name: jsc-windows-${{ matrix.arch }}
           path: |
-            webkit/WebKitBuild/${CONFIG}/bin/JavaScriptCore.dll
-            webkit/WebKitBuild/${CONFIG}/lib/JavaScriptCore.lib
-            webkit/WebKitBuild/${CONFIG}/bin/jsc.exe
+            webkit/WebKitBuild/Release/bin/JavaScriptCore.dll
+            webkit/WebKitBuild/Release/lib/JavaScriptCore.lib
+            webkit/WebKitBuild/Release/bin/jsc.exe
 
       - name: Upload Android artifacts
         if: matrix.target == 'android'
@@ -149,4 +150,4 @@ jobs:
         with:
           name: jsc-android-${{ matrix.abi }}
           path: |
-            webkit/WebKitBuild/${CONFIG}/lib/${{ matrix.abi }}/libJavaScriptCore.so
+            webkit/WebKitBuild/Release/lib/${{ matrix.abi }}/libJavaScriptCore.so
