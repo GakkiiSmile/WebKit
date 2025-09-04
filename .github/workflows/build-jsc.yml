@@ -1,0 +1,163 @@
+name: Build JavaScriptCore (JSC) dynamic libs
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-jsc-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CONFIG: Release
+
+jobs:
+  build:
+    name: ${{ matrix.target }}${{ matrix.abi && format(' ({0})', matrix.abi) || '' }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux host -> Linux .so
+          - os: ubuntu-latest
+            target: linux
+
+          # Windows host -> Windows .dll
+          - os: windows-latest
+            target: windows
+
+          # Android ABIs -> Android .so (cross-compile on Ubuntu)
+          - os: ubuntu-latest
+            target: android
+            abi: arm64-v8a
+          - os: ubuntu-latest
+            target: android
+            abi: armeabi-v7a
+          - os: ubuntu-latest
+            target: android
+            abi: x86_64
+
+    steps:
+      - name: Checkout WebKit
+        uses: actions/checkout@v4
+        with:
+          repository: WebKit/WebKit
+          path: webkit
+          fetch-depth: 1
+          # 说明：WebKit 的构建脚本会引用 Tools、Source 等多处文件。
+          # 为避免缺文件导致构建失败，这里不做 sparse checkout。
+
+      # ---------------------------
+      # Linux 依赖
+      # ---------------------------
+      - name: Install deps (Linux)
+        if: matrix.target == 'linux' || matrix.target == 'android'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build \
+            gperf bison flex ruby perl python3 \
+            pkg-config libicu-dev libxml2-dev libxslt1-dev \
+            libsqlite3-dev libjpeg-dev libpng-dev libwebp-dev \
+            libharfbuzz-dev ccache
+
+      # ---------------------------
+      # Windows 依赖
+      # ---------------------------
+      - name: Install deps (Windows via Chocolatey)
+        if: matrix.target == 'windows'
+        shell: powershell
+        run: |
+          choco install -y strawberryperl cmake ninja gperf winflexbison3 python ruby nasm
+          # CMake/Ninja/Perl/Python/Ruby 等用于驱动 build-jsc 与生成文件
+          refreshenv
+
+      - name: Setup MSVC env (Windows)
+        if: matrix.target == 'windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # ---------------------------
+      # Android NDK
+      # ---------------------------
+      - name: Setup Android NDK
+        if: matrix.target == 'android'
+        uses: android-actions/setup-ndk@v3
+        with:
+          # r26 系列与 CMake toolchain 配合良好；如需特定版本可改这个值
+          ndk-version: r26d
+
+      # ---------------------------
+      # Cache
+      # ---------------------------
+      - name: Cache WebKitBuild (incremental)
+        uses: actions/cache@v4
+        with:
+          path: |
+            webkit/WebKitBuild
+          key: ${{ runner.os }}-jsc-${{ matrix.target }}-${{ matrix.abi || 'na' }}-${{ hashFiles('webkit/Tools/Scripts/build-jsc', 'webkit/Source/JavaScriptCore/**') }}
+          restore-keys: |
+            ${{ runner.os }}-jsc-${{ matrix.target }}-${{ matrix.abi || 'na' }}-
+
+      # ---------------------------
+      # Build
+      # ---------------------------
+      - name: Build JSC (Linux)
+        if: matrix.target == 'linux'
+        working-directory: webkit
+        run: |
+          Tools/Scripts/build-jsc --jsc-only --${CONFIG,,} \
+            --cmakeargs="-GNinja"
+
+      - name: Build JSC (Android ${{ matrix.abi }})
+        if: matrix.target == 'android'
+        working-directory: webkit
+        env:
+          ANDROID_NDK: ${{ env.ANDROID_NDK_ROOT }}
+        run: |
+          Tools/Scripts/build-jsc --jsc-only --${CONFIG,,} \
+            --cmakeargs="-GNinja -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake -DANDROID_ABI=${{ matrix.abi }} -DANDROID_PLATFORM=android-24"
+
+      - name: Build JSC (Windows)
+        if: matrix.target == 'windows'
+        shell: bash
+        working-directory: webkit
+        run: |
+          # 在 Windows 上用 Perl 调用脚本以确保兼容性
+          perl Tools/Scripts/build-jsc --jsc-only --${CONFIG,,} \
+            --cmakeargs="-GNinja"
+
+      # ---------------------------
+      # Collect & Upload Artifacts
+      # ---------------------------
+      - name: Locate artifacts
+        id: find_paths
+        shell: bash
+        working-directory: webkit
+        run: |
+          echo "Searching build outputs..."
+          # 统一收集可能路径（不同平台/生成器目录结构略有差异）
+          mkdir -p ../_out
+          # Linux / Android
+          find WebKitBuild -type f -name "libJavaScriptCore*.so" -exec cp -v {} ../_out/ \; || true
+          # Windows
+          find WebKitBuild -type f \( -iname "JavaScriptCore.dll" -o -iname "JavaScriptCore.lib" -o -iname "JavaScriptCore.pdb" \) -exec cp -v {} ../_out/ \; || true
+          ls -l ../_out || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jsc-${{ matrix.target }}${{ matrix.abi && format('-{0}', matrix.abi) || '' }}-${{ env.CONFIG }}
+          path: |
+            _out/**
+          if-no-files-found: error
+          retention-days: 14
