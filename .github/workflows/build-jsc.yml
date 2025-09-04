@@ -1,23 +1,49 @@
-name: Build JavaScriptCore
+name: Build JavaScriptCore (JSC) dynamic libs
 
 on:
   push:
-    branches: [main]
+    branches: ["main"]
   pull_request:
-    branches: [main]
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-jsc-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CONFIG: Release
 
 jobs:
   build:
+    name: ${{ matrix.target }}${{ matrix.abi && format(' ({0})', matrix.abi) || '' }}
+    runs-on: ${{ matrix.os }}
+
     strategy:
+      fail-fast: false
       matrix:
-        target: [linux, windows, android]
-        arch: [x64]
-        config: [Release]
         include:
-          - target: android
-            arch: arm64-v8a
-            config: Release
-    runs-on: ${{ matrix.target == 'windows' && 'windows-latest' || 'ubuntu-22.04' }}
+          # Linux host -> Linux .so
+          - os: ubuntu-latest
+            target: linux
+
+          # Windows host -> Windows .dll
+          - os: windows-latest
+            target: windows
+
+          # Android ABIs -> Android .so (cross-compile on Ubuntu)
+          - os: ubuntu-latest
+            target: android
+            abi: arm64-v8a
+          - os: ubuntu-latest
+            target: android
+            abi: armeabi-v7a
+          - os: ubuntu-latest
+            target: android
+            abi: x86_64
 
     steps:
       - name: Checkout WebKit
@@ -41,19 +67,47 @@ jobs:
             libsqlite3-dev libjpeg-dev libpng-dev libwebp-dev \
             libharfbuzz-dev ccache
 
-      - name: Setup MSVC (Windows)
-        if: matrix.target == 'windows'
-        shell: pwsh
-        uses: ilammy/msvc-dev-cmd@v1
 
+      - name: Setup MSVC env (Windows)
+        if: matrix.target == 'windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # ---------------------------
+      # Android NDK
+      # ---------------------------
       - name: Setup Android NDK
         if: matrix.target == 'android'
+        id: setup-ndk
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r26d
           add-to-path: true
           link-to-sdk: true
           local-cache: true
+
+      # ---------------------------
+      # Cache
+      # ---------------------------
+      - name: Cache WebKitBuild (incremental)
+        uses: actions/cache@v4
+        with:
+          path: |
+            webkit/WebKitBuild
+          key: ${{ runner.os }}-jsc-${{ matrix.target }}-${{ matrix.abi || 'na' }}-${{ hashFiles('webkit/Tools/Scripts/build-jsc', 'webkit/Source/JavaScriptCore/**') }}
+          restore-keys: |
+            ${{ runner.os }}-jsc-${{ matrix.target }}-${{ matrix.abi || 'na' }}-
+
+      # ---------------------------
+      # Build
+      # ---------------------------
+      - name: Build JSC (Linux)
+        if: matrix.target == 'linux'
+        working-directory: webkit
+        run: |
+          Tools/Scripts/build-jsc --jsc-only --${CONFIG,,} \
+            --cmakeargs="-GNinja"
 
       # ================= Build ICU for Android =================
       - name: Build ICU4C (Android)
@@ -65,21 +119,9 @@ jobs:
           build-dir: ${{ github.workspace }}/icu4c-build
           install-dir: ${{ github.workspace }}/icu4c-install
 
-      # ================= Build JSC =================
-      - name: Build JSC (Linux)
-        if: matrix.target == 'linux'
-        run: |
-          Tools/Scripts/build-jsc --jsc-only --${{ matrix.config,, }}
-
-      - name: Build JSC (Windows)
-        if: matrix.target == 'windows'
-        shell: pwsh
-        run: |
-          perl Tools/Scripts/build-jsc --jsc-only --${{ matrix.config,, }} \
-            --cmakeargs="-GNinja"
-
-      - name: Build JSC (Android)
+      - name: Build JSC (Android ${{ matrix.abi }})
         if: matrix.target == 'android'
+        working-directory: webkit
         run: |
           Tools/Scripts/build-jsc --jsc-only --${{ matrix.config,, }} \
             --cmakeargs="-GNinja \
@@ -89,10 +131,39 @@ jobs:
               -DCMAKE_PREFIX_PATH=$GITHUB_WORKSPACE/icu4c-install \
               -DCMAKE_POLICY_DEFAULT_CMP0048=NEW"
 
+      - name: Build JSC (Windows)
+        if: matrix.target == 'windows'
+        shell: pwsh
+        working-directory: webkit
+        run: |
+          perl Tools/Scripts/build-jsc --jsc-only --${CONFIG,,} \
+            --cmakeargs="-GNinja"
+
       # ================= Upload Artifacts =================
-      - name: Upload Android artifacts
+
+      - name: Upload Linux artifacts
+        if: matrix.target == 'linux'
         uses: actions/upload-artifact@v4
         with:
-          name: jsc-${{ matrix.target }}${{ matrix.abi && format('-{0}', matrix.abi) || '' }}-${{ matrix.config }}
+          name: jsc-linux-${{ matrix.arch }}
           path: |
-            WebKitBuild/${{ matrix.config }}/lib/**
+            webkit/WebKitBuild/${{ matrix.config }}/lib/libJavaScriptCore.so*
+            webkit/WebKitBuild/${{ matrix.config }}/bin/jsc
+
+      - name: Upload Windows artifacts
+        if: matrix.target == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jsc-windows-${{ matrix.arch }}
+          path: |
+            webkit/WebKitBuild/${{ matrix.config }}/bin/JavaScriptCore.dll
+            webkit/WebKitBuild/${{ matrix.config }}/lib/JavaScriptCore.lib
+            webkit/WebKitBuild/${{ matrix.config }}/bin/jsc.exe
+
+      - name: Upload Android artifacts
+        if: matrix.target == 'android'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jsc-android-${{ matrix.arch }}
+          path: |
+            webkit/WebKitBuild/${{ matrix.config }}/lib/${{ matrix.arch }}/libJavaScriptCore.so
