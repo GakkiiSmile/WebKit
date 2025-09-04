@@ -109,16 +109,6 @@ jobs:
           Tools/Scripts/build-jsc --jsc-only --${CONFIG} \
             --cmakeargs="-GNinja"
 
-      # ================= Build ICU for Android =================
-      - name: Build ICU4C (Android)
-        if: matrix.target == 'android'
-        uses: unicode-org/icu/.github/actions/icu4c.yml@main
-        with:
-          platform: android
-          arch: ${{ matrix.arch }}
-          build-dir: ${{ github.workspace }}/icu4c-build
-          install-dir: ${{ github.workspace }}/icu4c-install
-
       - name: Build JSC (Android ${{ matrix.abi }})
         if: matrix.target == 'android'
         working-directory: webkit
@@ -128,7 +118,7 @@ jobs:
               -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
               -DANDROID_ABI=${{ matrix.arch }} \
               -DANDROID_PLATFORM=android-24 \
-              -DCMAKE_PREFIX_PATH=$GITHUB_WORKSPACE/icu4c-install \
+              -DENABLE_ICU=OFF \
               -DCMAKE_POLICY_DEFAULT_CMP0048=NEW"
 
       - name: Build JSC (Windows)
