@@ -74,7 +74,7 @@ jobs:
         if: matrix.target == 'windows'
         shell: pwsh
         run: |
-          choco install -y strawberryperl cmake ninja gperf winflexbison3 python ruby nasm refreshenv
+          choco install -y strawberryperl cmake ninja gperf winflexbison3 python ruby nasm
 
       # ---------------------------
       # Android NDK
@@ -117,18 +117,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-jsc-${{ matrix.target }}-${{ matrix.abi || 'na' }}-
 
+      # 判断缓存是否命中，跳过构建
+      - name: Skip build if cache hit
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: echo "Cache hit; skipping build"
+
       # ---------------------------
       # Build
       # ---------------------------
       - name: Build JSC (Linux)
-        if: matrix.target == 'linux'
+        if: steps.cache.outputs.cache-hit != 'true' && matrix.target == 'linux'
         working-directory: webkit
         run: |
           Tools/Scripts/build-jsc --jsc-only --Release \
             --cmakeargs="-GNinja"
 
       - name: Build JSC (Android ${{ matrix.abi }})
-        if: matrix.target == 'android'
+        if: steps.cache.outputs.cache-hit != 'true' && matrix.target == 'android'
         working-directory: webkit
         run: |
           Tools/Scripts/build-jsc --jsc-only --Release \
@@ -144,7 +149,7 @@ jobs:
               -DCMAKE_POLICY_DEFAULT_CMP0048=NEW"
 
       - name: Build JSC (Windows)
-        if: matrix.target == 'windows'
+        if: steps.cache.outputs.cache-hit != 'true' && matrix.target == 'windows'
         shell: pwsh
         working-directory: webkit
         run: perl Tools/Scripts/build-jsc --jsc-only --Release --cmakeargs='-GNinja'
@@ -154,8 +159,8 @@ jobs:
         working-directory: webkit
         run: |
           mkdir -p artifact-dir
-          cp -r WebKitBuild/Release/lib/* artifact-dir/
-          cp -r WebKitBuild/Release/bin/* artifact-dir/
+          tar -czf WebKitBuild.tar.gz WebKitBuild
+          mv WebKitBuild.tar.gz artifact-dir/
 
       - name: Upload Linux artifacts
         if: matrix.target == 'linux'
@@ -163,7 +168,7 @@ jobs:
         with:
           name: jsc-linux
           path: |
-            artifact-dir/
+            artifact-dir/WebKitBuild.tar.gz
 
       - name: Upload Windows artifacts
         if: matrix.target == 'windows'
@@ -171,7 +176,7 @@ jobs:
         with:
           name: jsc-windows-${{ matrix.arch }}
           path: |
-            artifact-dir/
+            artifact-dir/WebKitBuild.tar.gz
 
       - name: Upload Android artifacts
         if: matrix.target == 'android'
@@ -179,4 +184,4 @@ jobs:
         with:
           name: jsc-android-${{ matrix.abi }}
           path: |
-            artifact-dir/
+            artifact-dir/WebKitBuild.tar.gz
