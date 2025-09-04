@@ -112,7 +112,7 @@ jobs:
       # ================= Build ICU for Android =================
       - name: Build ICU4C (Android)
         if: matrix.target == 'android'
-        uses: unicode-org/icu/.github/actions/icu4c@main
+        uses: unicode-org/icu/.github/actions/icu4c.yml@main
         with:
           platform: android
           arch: ${{ matrix.arch }}
