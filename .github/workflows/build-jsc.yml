@@ -90,26 +90,12 @@ jobs:
           local-cache:
             true
 
-            # 新增：构建 ICU for Android
-      - name: Build ICU for Android
-        if: matrix.target == 'android'
-        working-directory: ${{ github.workspace }}
-        run: |
-          git clone https://github.com/unicode-org/icu.git
-          cd icu/icu4c/source
-          mkdir -p build-android && cd build-android
-          cmake .. \
-            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI=${{ matrix.abi }} \
-            -DANDROID_PLATFORM=android-24 \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=$PWD/install
-          cmake --build . --target install
       # ---------------------------
       # Cache
       # ---------------------------
       - name: Cache WebKitBuild (incremental)
         uses: actions/cache@v4
+        id: build-cache
         with:
           path: |
             webkit/WebKitBuild
@@ -118,22 +104,22 @@ jobs:
             ${{ runner.os }}-jsc-${{ matrix.target }}-${{ matrix.abi || 'na' }}-
 
       # 判断缓存是否命中，跳过构建
-      - name: Skip build if cache hit
-        if: steps.cache.outputs.cache-hit == 'true'
-        run: echo "Cache hit; skipping build"
+      - name: echo cache hit
+        if: steps.build-cache.outputs.cache-hit == 'true'
+        run: echo "all outputs are cached:${{ toJson(steps.build-cache.outputs) }}"
 
       # ---------------------------
       # Build
       # ---------------------------
       - name: Build JSC (Linux)
-        if: steps.cache.outputs.cache-hit != 'true' && matrix.target == 'linux'
+        if: steps.build-cache.outputs.cache-hit != 'true' && matrix.target == 'linux'
         working-directory: webkit
         run: |
           Tools/Scripts/build-jsc --jsc-only --Release \
             --cmakeargs="-GNinja"
 
       - name: Build JSC (Android ${{ matrix.abi }})
-        if: steps.cache.outputs.cache-hit != 'true' && matrix.target == 'android'
+        if: steps.build-cache.outputs.cache-hit != 'true' && matrix.target == 'android'
         working-directory: webkit
         run: |
           Tools/Scripts/build-jsc --jsc-only --Release \
@@ -141,15 +127,10 @@ jobs:
               -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
               -DANDROID_ABI=${{ matrix.abi }} \
               -DANDROID_PLATFORM=android-24 \
-              -DICU_ROOT=${{ github.workspace }}/icu/icu4c/source/build-android/install \
-              -DICU_INCLUDE_DIR=${{ github.workspace }}/icu/icu4c/source/build-android/install/include \
-              -DICU_LIBRARY=${{ github.workspace }}/icu/icu4c/source/build-android/install/lib/libicuuc.a \
-              -DICU_I18N_LIBRARY=${{ github.workspace }}/icu/icu4c/source/build-android/install/lib/libicui18n.a \
-              -DICU_DATA_LIBRARY=${{ github.workspace }}/icu/icu4c/source/build-android/install/lib/libicudata.a \
               -DCMAKE_POLICY_DEFAULT_CMP0048=NEW"
 
       - name: Build JSC (Windows)
-        if: steps.cache.outputs.cache-hit != 'true' && matrix.target == 'windows'
+        if: steps.build-cache.outputs.cache-hit != 'true' && matrix.target == 'windows'
         shell: pwsh
         working-directory: webkit
         run: perl Tools/Scripts/build-jsc --jsc-only --Release --cmakeargs='-GNinja'
