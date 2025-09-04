@@ -149,7 +149,7 @@ jobs:
         with:
           name: jsc-linux
           path: |
-            artifact-dir/WebKitBuild.tar.gz
+            webkit/artifact-dir/WebKitBuild.tar.gz
 
       - name: Upload Windows artifacts
         if: matrix.target == 'windows'
@@ -157,7 +157,7 @@ jobs:
         with:
           name: jsc-windows-${{ matrix.arch }}
           path: |
-            artifact-dir/WebKitBuild.tar.gz
+            webkit/artifact-dir/WebKitBuild.tar.gz
 
       - name: Upload Android artifacts
         if: matrix.target == 'android'
@@ -165,4 +165,4 @@ jobs:
         with:
           name: jsc-android-${{ matrix.abi }}
           path: |
-            artifact-dir/WebKitBuild.tar.gz
+            webkit/artifact-dir/WebKitBuild.tar.gz
