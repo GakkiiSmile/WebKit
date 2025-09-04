@@ -69,6 +69,15 @@ jobs:
           arch: x64
 
       # ---------------------------
+      # Windows 依赖
+      # ---------------------------
+      - name: Install deps (Windows via Chocolatey)
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          choco install -y strawberryperl cmake ninja gperf winflexbison3 python ruby nasm refreshenv
+
+      # ---------------------------
       # Android NDK
       # ---------------------------
       - name: Setup Android NDK
@@ -81,6 +90,21 @@ jobs:
           link-to-sdk: true
           local-cache: true
 
+            # 新增：构建 ICU for Android
+      - name: Build ICU for Android
+        if: matrix.target == 'android'
+        working-directory: ${{ github.workspace }}
+        run: |
+          git clone https://github.com/unicode-org/icu.git
+          cd icu/icu4c/source
+          mkdir -p build-android && cd build-android
+          cmake .. \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=${{ matrix.abi }} \
+            -DANDROID_PLATFORM=android-24 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=$PWD/install
+          cmake --build . --target install
       # ---------------------------
       # Cache
       # ---------------------------
@@ -112,8 +136,11 @@ jobs:
               -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
               -DANDROID_ABI=${{ matrix.abi }} \
               -DANDROID_PLATFORM=android-24 \
-              -DENABLE_ICU=OFF \
-              -DUSE_SYSTEM_ICU=OFF \
+              -DICU_ROOT=${{ github.workspace }}/icu/icu4c/source/build-android/install \
+              -DICU_INCLUDE_DIR=${{ github.workspace }}/icu/icu4c/source/build-android/install/include \
+              -DICU_LIBRARY=${{ github.workspace }}/icu/icu4c/source/build-android/install/lib/libicuuc.a \
+              -DICU_I18N_LIBRARY=${{ github.workspace }}/icu/icu4c/source/build-android/install/lib/libicui18n.a \
+              -DICU_DATA_LIBRARY=${{ github.workspace }}/icu/icu4c/source/build-android/install/lib/libicudata.a \
               -DCMAKE_POLICY_DEFAULT_CMP0048=NEW"
 
       - name: Build JSC (Windows)
@@ -127,27 +154,30 @@ jobs:
 
       - name: Upload Linux artifacts
         if: matrix.target == 'linux'
+        working-directory: webkit
         uses: actions/upload-artifact@v4
         with:
-          name: jsc-linux-${{ matrix.arch }}
+          name: jsc-linux
           path: |
-            webkit/WebKitBuild/Release/lib/libJavaScriptCore.so*
-            webkit/WebKitBuild/Release/bin/jsc
+            WebKitBuild/Release/lib/**
+            WebKitBuild/Release/bin/jsc
 
       - name: Upload Windows artifacts
         if: matrix.target == 'windows'
+        working-directory: webkit
         uses: actions/upload-artifact@v4
         with:
           name: jsc-windows-${{ matrix.arch }}
           path: |
-            webkit/WebKitBuild/Release/bin/JavaScriptCore.dll
-            webkit/WebKitBuild/Release/lib/JavaScriptCore.lib
-            webkit/WebKitBuild/Release/bin/jsc.exe
+            WebKitBuild/Release/bin/JavaScriptCore.dll
+            WebKitBuild/Release/lib/JavaScriptCore.lib
+            WebKitBuild/Release/bin/jsc.exe
 
       - name: Upload Android artifacts
         if: matrix.target == 'android'
+        working-directory: webkit
         uses: actions/upload-artifact@v4
         with:
           name: jsc-android-${{ matrix.abi }}
           path: |
-            webkit/WebKitBuild/Release/lib/${{ matrix.abi }}/libJavaScriptCore.so
+            WebKitBuild/Release/lib/${{ matrix.abi }}/libJavaScriptCore.so
