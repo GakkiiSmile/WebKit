@@ -59,7 +59,7 @@ jobs:
             gperf bison flex ruby perl python3 \
             pkg-config libicu-dev libxml2-dev libxslt1-dev \
             libsqlite3-dev libjpeg-dev libpng-dev libwebp-dev \
-            libharfbuzz-dev ccache
+            libharfbuzz-dev ccache wget
 
       - name: Setup MSVC env (Windows)
         if: matrix.target == 'windows'
@@ -75,6 +75,18 @@ jobs:
         shell: pwsh
         run: |
           choco install -y strawberryperl cmake ninja gperf winflexbison3 python ruby nasm llvm
+# 在Windows依赖安装步骤后添加
+      - name: Install Clang builtins for Windows
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          # 下载Clang内置库
+          $clangVersion = (clang --version | Select-String -Pattern "clang version (\d+\.\d+)").Matches.Groups[1].Value
+          Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/releases/download/llvmorg-$clangVersion/clang+llvm-$clangVersion-win64.tar.xz" -OutFile clang.tar.xz
+          tar -xf clang.tar.xz
+          # 添加库路径到环境变量
+          $clangLibPath = Resolve-Path "clang+llvm-$clangVersion-win64/lib/clang/$clangVersion/lib/windows"
+          echo "CLANG_LIB_PATH=$clangLibPath" >> $env:GITHUB_ENV
 
       # ---------------------------
       # Android NDK
@@ -124,7 +136,7 @@ jobs:
             webkit/WebKitBuild
           key: ${{ runner.os }}-jsc-${{ matrix.target }}-${{ matrix.abi || 'na' }}-${{ hashFiles('webkit/Tools/Scripts/build-jsc', 'webkit/Source/JavaScriptCore/**') }}
           restore-keys: |
-            ${{ runner.os }}-jsc-${{ matrix.target }}-${{ matrix.abi || 'na' }}-
+            ${{ runner.os }}-jsc-${{ matrix.target }}-${{ matrix.abi || 'na' }}-${{ hashFiles('webkit/Tools/Scripts/build-jsc', 'webkit/Source/JavaScriptCore/**') }}
 
       # 判断缓存是否命中，跳过构建
       - name: echo cache hit
@@ -157,7 +169,9 @@ jobs:
         if: steps.build-cache.outputs.cache-hit != 'true' && matrix.target == 'windows'
         shell: pwsh
         working-directory: webkit
-        run: perl Tools/Scripts/build-jsc --jsc-only --Release --cmakeargs='-GNinja'
+        env:
+          CMAKE_PREFI X_PATH: ${{ env.CLANG_LIB_PATH }}  # 添加这行
+        run: perl Tools/Scripts/build-jsc --jsc-only --Release --cmakeargs='-GNinja -DCLANG_BUILTINS_LIBRARY="${{ env.CLANG_LIB_PATH }}/clang_rt.builtins-x86_64.lib"'
 
       # ================= Upload Artifacts =================
       - name: Prepare artifacts for upload
@@ -173,7 +187,7 @@ jobs:
         with:
           name: jsc-linux
           path: |
-            artifact-dir/WebKitBuild.tar.gz
+            webkit/artifact-dir/WebKitBuild.tar.gz
 
       - name: Upload Windows artifacts
         if: matrix.target == 'windows'
@@ -181,7 +195,7 @@ jobs:
         with:
           name: jsc-windows-${{ matrix.arch }}
           path: |
-            artifact-dir/WebKitBuild.tar.gz
+            webkit/artifact-dir/WebKitBuild.tar.gz
 
       - name: Upload Android artifacts
         if: matrix.target == 'android'
@@ -189,4 +203,4 @@ jobs:
         with:
           name: jsc-android-${{ matrix.abi }}
           path: |
-            artifact-dir/WebKitBuild.tar.gz
+            webkit/artifact-dir/WebKitBuild.tar.gz
