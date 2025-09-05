@@ -57,7 +57,7 @@ jobs:
           sudo apt-get install -y \
             build-essential cmake ninja-build \
             gperf bison flex ruby perl python3 \
-            pkg-config libicu-dev libxml2-dev libxslt1-dev \
+            pkg-config libxml2-dev libxslt1-dev \
             libsqlite3-dev libjpeg-dev libpng-dev libwebp-dev \
             libharfbuzz-dev ccache wget
 
@@ -75,7 +75,6 @@ jobs:
         shell: pwsh
         run: |
           choco install -y strawberryperl cmake ninja gperf winflexbison3 python ruby nasm llvm
-    
 
       # ---------------------------
       # Android NDK
@@ -88,30 +87,7 @@ jobs:
           ndk-version: r26d
           add-to-path: true
           link-to-sdk: true
-          local-cache:
-            true
-
-      # 在 "Setup Android NDK" 步骤后添加以下内容
-      - name: Build ICU for Android
-        if: matrix.target == 'android'
-        run: |
-          sudo apt-get install -y wget
-          ICU_VERSION="75.1"
-          wget https://github.com/unicode-org/icu/releases/download/release-${ICU_VERSION//./-}/icu4c-${ICU_VERSION//./_}-src.tgz
-          tar xzf icu4c-*.tgz
-          cd icu/source
-
-          ./configure --host=arm-linux-androideabi \
-                      --prefix=$PWD/install \
-                      --with-cross-build=$PWD/../../host-build \
-                      --enable-static \
-                      --disable-shared
-
-          make -j$(nproc)
-          make install
-        env:
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-          PATH: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+          local-cache: true
 
       # ---------------------------
       # Cache
@@ -139,7 +115,7 @@ jobs:
         working-directory: webkit
         run: |
           Tools/Scripts/build-jsc --jsc-only --Release \
-            --cmakeargs="-GNinja"
+            --cmakeargs="-GNinja -DENABLE_INTL=OFF -DUSE_ICU=OFF"
 
       - name: Build JSC (Android ${{ matrix.abi }})
         if: steps.build-cache.outputs.cache-hit != 'true' && matrix.target == 'android'
@@ -151,7 +127,13 @@ jobs:
               -DANDROID_ABI=${{ matrix.abi }} \
               -DANDROID_PLATFORM=android-24 \
               -DCMAKE_POLICY_DEFAULT_CMP0048=NEW \
-              -DICU_ROOT=$(pwd)/../../icu/source/install" 
+              -DENABLE_INTL=OFF -DUSE_ICU=OFF"
+
+      - name: Debug LLVM builtins
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          Get-ChildItem "C:\Program Files\LLVM\lib\clang\" -Recurse | Where-Object { $_.Name -match "clang_rt.builtins" }
 
       - name: Build JSC (Windows)
         if: steps.build-cache.outputs.cache-hit != 'true' && matrix.target == 'windows'
@@ -159,8 +141,9 @@ jobs:
         working-directory: webkit
         run: |
           $clangVersion = (Get-ChildItem "C:\Program Files\LLVM\lib\clang\" | Sort-Object Name -Descending | Select-Object -First 1).Name
-          $clangLibPath = "C:\Program Files\LLVM\lib\clang\$clangVersion\lib\windows"
-          perl Tools/Scripts/build-jsc --jsc-only --Release --cmakeargs="-GNinja -DCLANG_LIBRARY_PATH=$clangLibPath"
+          $clangLibPath = "C:/Program Files/LLVM/lib/clang/$clangVersion/lib/windows"
+          Write-Host "Using CLANG_LIBRARY_PATH=$clangLibPath"
+          perl Tools/Scripts/build-jsc --jsc-only --Release --cmakeargs="-GNinja -DENABLE_INTL=OFF -DUSE_ICU=OFF -DCLANG_LIBRARY_PATH=$clangLibPath"
 
       # ================= Upload Artifacts =================
       - name: Prepare artifacts for upload
