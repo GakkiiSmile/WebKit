@@ -87,7 +87,7 @@ jobs:
         working-directory: webkit
         run: |
           perl Tools/Scripts/build-jsc --jsc-only --Release --cmakeargs='-GNinja 
-          -DENABLE_TOOLS=OFF -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl  
+          -DENABLE_JAVASCRIPT_SHELL=OFF -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl  
           -DCMAKE_INCLUDE_PATH=Source/WTF -DCLANG_BUILTINS_LIBRARY="C:\Program Files\LLVM\lib\clang\20\lib\windows\clang_rt.builtins-x86_64.lib"'
 
       # ================= Upload Artifacts =================
