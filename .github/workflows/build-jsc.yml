@@ -74,7 +74,7 @@ jobs:
         if: matrix.target == 'windows'
         shell: pwsh
         run: |
-          choco install -y strawberryperl cmake ninja gperf winflexbison3 python ruby nasm
+          choco install -y strawberryperl cmake ninja gperf winflexbison3 python ruby nasm llvm
 
       # ---------------------------
       # Android NDK
@@ -89,6 +89,29 @@ jobs:
           link-to-sdk: true
           local-cache:
             true
+# 在 "Setup Android NDK" 步骤后添加以下内容
+      - name: Build ICU for Android
+        if: matrix.target == 'android'
+        run: |
+          # 下载ICU源码
+          ICU_VERSION="75.1"
+          wget https://github.com/unicode-org/icu/releases/download/release-${ICU_VERSION//./-}/icu4c-${ICU_VERSION//./_}-src.tgz
+          tar xzf icu4c-*.tgz
+          cd icu/source
+
+          # 配置Android交叉编译
+          ./configure --host=arm-linux-androideabi \
+                      --prefix=$PWD/install \
+                      --with-cross-build=$PWD/../../host-build \
+                      --enable-static \
+                      --disable-shared
+
+          # 编译并安装
+          make -j$(nproc)
+          make install
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          PATH: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
 
       # ---------------------------
       # Cache
@@ -101,7 +124,7 @@ jobs:
             webkit/WebKitBuild
           key: ${{ runner.os }}-jsc-${{ matrix.target }}-${{ matrix.abi || 'na' }}-${{ hashFiles('webkit/Tools/Scripts/build-jsc', 'webkit/Source/JavaScriptCore/**') }}
           restore-keys: |
-            ${{ runner.os }}-jsc-${{ matrix.target }}-${{ matrix.abi || 'na' }}-${{ hashFiles('webkit/Tools/Scripts/build-jsc', 'webkit/Source/JavaScriptCore/**') }}
+            ${{ runner.os }}-jsc-${{ matrix.target }}-${{ matrix.abi || 'na' }}-
 
       # 判断缓存是否命中，跳过构建
       - name: echo cache hit
@@ -127,7 +150,8 @@ jobs:
               -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
               -DANDROID_ABI=${{ matrix.abi }} \
               -DANDROID_PLATFORM=android-24 \
-              -DCMAKE_POLICY_DEFAULT_CMP0048=NEW"
+              -DCMAKE_POLICY_DEFAULT_CMP0048=NEW \
+              -DICU_ROOT=$(pwd)/../../icu/source/install" 
 
       - name: Build JSC (Windows)
         if: steps.build-cache.outputs.cache-hit != 'true' && matrix.target == 'windows'
@@ -149,7 +173,7 @@ jobs:
         with:
           name: jsc-linux
           path: |
-            webkit/artifact-dir/WebKitBuild.tar.gz
+            artifact-dir/WebKitBuild.tar.gz
 
       - name: Upload Windows artifacts
         if: matrix.target == 'windows'
@@ -157,7 +181,7 @@ jobs:
         with:
           name: jsc-windows-${{ matrix.arch }}
           path: |
-            webkit/artifact-dir/WebKitBuild.tar.gz
+            artifact-dir/WebKitBuild.tar.gz
 
       - name: Upload Android artifacts
         if: matrix.target == 'android'
@@ -165,4 +189,4 @@ jobs:
         with:
           name: jsc-android-${{ matrix.abi }}
           path: |
-            webkit/artifact-dir/WebKitBuild.tar.gz
+            artifact-dir/WebKitBuild.tar.gz
