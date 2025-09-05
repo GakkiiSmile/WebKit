@@ -51,7 +51,7 @@ jobs:
         if: matrix.target == 'windows'
         shell: pwsh
         run: |
-          choco install -y strawberryperl cmake ninja gperf winflexbison3 python ruby nasm llvm
+          choco install -y strawberryperl cmake ninja gperf winflexbison3 python ruby nasm llvm curl
 
       # ---------------------------
       # Cache
